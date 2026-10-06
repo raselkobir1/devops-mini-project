@@ -1,0 +1,54 @@
+# Local run:  cp .env.example .env && docker compose up -d --build
+# Compose builds the image locally; Ansible/CD deploy the Docker Hub image instead.
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: product-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-devops_demo}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - product-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-devops_demo}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  api:
+    image: ${DOCKERHUB_USERNAME:-local}/product-api:${IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: product-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      # Host is the compose service name "postgres", not localhost.
+      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=${POSTGRES_DB:-devops_demo};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-postgres}"
+    ports:
+      - "${API_PORT:-8080}:8080"
+    networks:
+      - product-net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
+networks:
+  product-net:
+    driver: bridge

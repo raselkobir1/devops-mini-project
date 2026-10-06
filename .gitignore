@@ -1,0 +1,21 @@
+bin/
+obj/
+.vs/
+.idea/
+*.user
+
+# secrets / local config
+.env
+*.pem
+*.key
+
+# terraform
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.*
+terraform/crash.log
+terraform/*.tfvars
+!terraform/terraform.tfvars.example
+
+# ansible runtime
+ansible/*.retry

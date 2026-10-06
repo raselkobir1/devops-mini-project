@@ -1,0 +1,49 @@
+# Managed by Ansible - do not edit by hand.
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: product-postgres
+    environment:
+      POSTGRES_DB: {{ postgres_db }}
+      POSTGRES_USER: {{ postgres_user }}
+      POSTGRES_PASSWORD: {{ postgres_password }}
+    ports:
+      - "{{ postgres_port }}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - product-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U {{ postgres_user }} -d {{ postgres_db }}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  api:
+    image: {{ dockerhub_username }}/{{ image_name }}:{{ image_tag }}
+    container_name: product-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database={{ postgres_db }};Username={{ postgres_user }};Password={{ postgres_password }}"
+    ports:
+      - "{{ api_port }}:8080"
+    networks:
+      - product-net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
+networks:
+  product-net:
+    driver: bridge

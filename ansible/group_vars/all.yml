@@ -1,0 +1,20 @@
+# Environment-specific values. Override with -e or environment variables; nothing here is a real secret.
+dockerhub_username: "{{ lookup('env', 'DOCKERHUB_USERNAME') | default('local', true) }}"
+image_name: product-api
+# Pass IMAGE_TAG=<git-sha> to deploy / roll back to a specific immutable tag.
+image_tag: "{{ lookup('env', 'IMAGE_TAG') | default('latest', true) }}"
+
+deploy_dir: "{{ lookup('env', 'DEPLOY_DIR') | default('~/product-api-deploy', true) }}"
+compose_project: product-deploy
+
+api_port: "{{ lookup('env', 'API_PORT') | default(8080, true) }}"
+postgres_port: "{{ lookup('env', 'POSTGRES_PORT') | default(5432, true) }}"
+postgres_db: "{{ lookup('env', 'POSTGRES_DB') | default('devops_demo', true) }}"
+postgres_user: "{{ lookup('env', 'POSTGRES_USER') | default('postgres', true) }}"
+# Local-dev default only. For real environments use ansible-vault or an env var.
+postgres_password: "{{ lookup('env', 'POSTGRES_PASSWORD') | default('postgres', true) }}"
+
+# Set to false when the image only exists locally (no registry).
+pull_image: true
+# Host used to call the API health endpoint from where Ansible runs.
+health_host: localhost

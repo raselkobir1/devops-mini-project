@@ -1,0 +1,66 @@
+---
+- name: Deploy Product API with Docker Compose
+  hosts: app_servers
+  gather_facts: false
+
+  tasks:
+    - name: Check Docker is available
+      ansible.builtin.command: docker info --format '{{ "{{.ServerVersion}}" }}'
+      register: docker_info
+      changed_when: false
+
+    - name: Create deployment directory
+      ansible.builtin.file:
+        path: "{{ deploy_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Render docker-compose.yml
+      ansible.builtin.template:
+        src: docker-compose.yml.j2
+        dest: "{{ deploy_dir }}/docker-compose.yml"
+        mode: "0600"   # contains the DB password
+      no_log: true
+
+    - name: Pull API image
+      community.docker.docker_image_pull:
+        name: "{{ dockerhub_username }}/{{ image_name }}"
+        tag: "{{ image_tag }}"
+      when: pull_image | bool
+
+    - name: Start / update containers
+      community.docker.docker_compose_v2:
+        project_src: "{{ deploy_dir }}"
+        project_name: "{{ compose_project }}"
+        state: present
+        pull: never          # image already pulled above (and only recreated if it changed)
+        recreate: auto
+
+    - name: Wait until PostgreSQL container is healthy
+      ansible.builtin.command: docker inspect -f '{{ "{{.State.Health.Status}}" }}' product-postgres
+      register: pg_health
+      until: pg_health.stdout == 'healthy'
+      retries: 20
+      delay: 3
+      changed_when: false
+
+    - name: Wait until API container is healthy
+      ansible.builtin.command: docker inspect -f '{{ "{{.State.Health.Status}}" }}' product-api
+      register: api_health
+      until: api_health.stdout == 'healthy'
+      retries: 30
+      delay: 3
+      changed_when: false
+
+    - name: Verify /health endpoint responds
+      ansible.builtin.uri:
+        url: "http://{{ health_host }}:{{ api_port }}/health"
+        status_code: 200
+      register: health
+      retries: 5
+      delay: 3
+      until: health.status == 200
+
+    - name: Report deployment
+      ansible.builtin.debug:
+        msg: "Deployed {{ dockerhub_username }}/{{ image_name }}:{{ image_tag }} - API healthy on port {{ api_port }}"

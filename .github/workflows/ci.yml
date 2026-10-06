@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore
+        run: dotnet restore DevOpsMiniProject.sln
+
+      - name: Build
+        run: dotnet build DevOpsMiniProject.sln --no-restore -c Release
+
+      - name: Test
+        run: dotnet test DevOpsMiniProject.sln --no-build -c Release --verbosity normal
+
+      # Build only (no push): fails the pipeline if the image cannot be built.
+      - name: Docker build check
+        run: docker build -f docker/Dockerfile -t product-api:ci .
